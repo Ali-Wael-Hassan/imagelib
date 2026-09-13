@@ -1,0 +1,3 @@
+D:\Development\Tools\CMake\bin\cmake.exe -E rm -f CMakeFiles\imagelib.dir/objects.a
+D:\Development\Languages\C++\ucrt64\bin\ar.exe qc CMakeFiles\imagelib.dir/objects.a @CMakeFiles\imagelib.dir\objects1.rsp
+D:\Development\Languages\C++\ucrt64\bin\c++.exe -Wl,--whole-archive CMakeFiles\imagelib.dir/objects.a -Wl,--no-whole-archive -o D:\Development\GitHub_Repos\C++\imagelib\bin\imagelib.exe -Wl,--out-implib,libimagelib.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\imagelib.dir\linkLibs.rsp
