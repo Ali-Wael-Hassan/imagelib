@@ -1,3 +1,0 @@
-D:/Development/GitHub_Repos/C++/imagelib/build/CMakeFiles/imagelib.dir
-D:/Development/GitHub_Repos/C++/imagelib/build/CMakeFiles/edit_cache.dir
-D:/Development/GitHub_Repos/C++/imagelib/build/CMakeFiles/rebuild_cache.dir

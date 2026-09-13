@@ -3,3 +3,12 @@
 *.jpeg
 *.bmp
 *.exe
+
+# CMake Config
+*.make
+*.check_cache
+Makefile
+*.txt
+*.cmake
+*.yaml
+build
