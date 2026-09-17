@@ -1,8 +1,3 @@
-// imagelib/simd/Simd.cpp
-//
-// Runtime ISA detection and assured-feature resolution. Everything else in
-// the SIMD tier is header-only and can be inlined into kernels.
-
 #include "imagelib/simd/Simd.h"
 
 namespace iml {
@@ -24,37 +19,43 @@ inline uint64 xgetbv0() noexcept {
 #endif
 }
 
-inline bool osSavesYmmState() noexcept {
-    return (xgetbv0() & 0x6u) == 0x6u;
-}
+/// True when the OS preserves XMM/YMM state (required for AVX).
+inline bool osSavesYmmState() noexcept { return (xgetbv0() & 0x6u) == 0x6u; }
 
-inline bool osSavesZmmState() noexcept {
-    return (xgetbv0() & 0xE0u) == 0xE0u;
-}
+/// True when the OS preserves ZMM state (required for AVX-512).
+inline bool osSavesZmmState() noexcept { return (xgetbv0() & 0xE0u) == 0xE0u; }
 
 } // namespace
 
+/// Queries CPUID and returns the ISA feature mask at runtime.
 SimdFeatures cpuFeatures() noexcept {
 #if defined(__x86_64__) || defined(__i386__)
-#    if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
     SimdFeatures f(compileTimeFeatures());
-    if (__builtin_cpu_supports("sse2"))    f |= SimdFeatures(Sse2);
-    if (__builtin_cpu_supports("sse4.1"))  f |= SimdFeatures(Sse41);
-    if (__builtin_cpu_supports("avx"))     f |= SimdFeatures(Avx);
-    if (__builtin_cpu_supports("avx2"))    f |= SimdFeatures(Avx2);
-    if (__builtin_cpu_supports("avx512f")) f |= SimdFeatures(Avx512F);
+    if (__builtin_cpu_supports("sse2"))
+        f |= SimdFeatures(Sse2);
+    if (__builtin_cpu_supports("sse4.1"))
+        f |= SimdFeatures(Sse41);
+    if (__builtin_cpu_supports("avx"))
+        f |= SimdFeatures(Avx);
+    if (__builtin_cpu_supports("avx2"))
+        f |= SimdFeatures(Avx2);
+    if (__builtin_cpu_supports("avx512f"))
+        f |= SimdFeatures(Avx512F);
     return f;
-#    else
+#else
     return compileTimeFeatures();
-#    endif
+#endif
 #else
     return compileTimeFeatures();
 #endif
 }
 
+/// Computes the features guaranteed safe to execute.
 SimdFeatures assuredFeatures() noexcept {
     SimdFeatures f = compileTimeFeatures();
-    if (f.empty()) return f;
+    if (f.empty())
+        return f;
     f &= cpuFeatures();
     if (!osSavesYmmState()) {
         f.mask &= ~(uint64(Avx) | uint64(Avx2) | uint64(Avx512F));
@@ -64,22 +65,33 @@ SimdFeatures assuredFeatures() noexcept {
     return f;
 }
 
+/// Returns the vector width in bytes for the active ISA.
 size_t vectorBytes() noexcept {
     const SimdFeatures f = assuredFeatures();
-    if (f.has(Avx512F)) return 64;
-    if (f.has(Avx2) || f.has(Avx)) return 32;
-    if (f.has(Sse2) || f.has(Neon) || f.has(SVE)) return 16;
+    if (f.has(Avx512F))
+        return 64;
+    if (f.has(Avx2) || f.has(Avx))
+        return 32;
+    if (f.has(Sse2) || f.has(Neon) || f.has(SVE))
+        return 16;
     return 0;
 }
 
+/// Returns a short name for the active ISA.
 const char* activeIsaName() noexcept {
     const SimdFeatures f = assuredFeatures();
-    if (f.has(Avx512F)) return "AVX512F";
-    if (f.has(Avx2))    return "AVX2";
-    if (f.has(Avx))     return "AVX";
-    if (f.has(Neon))    return "NEON";
-    if (f.has(Sse2))    return "SSE2";
-    if (f.has(SVE))     return "SVE";
+    if (f.has(Avx512F))
+        return "AVX512F";
+    if (f.has(Avx2))
+        return "AVX2";
+    if (f.has(Avx))
+        return "AVX";
+    if (f.has(Neon))
+        return "NEON";
+    if (f.has(Sse2))
+        return "SSE2";
+    if (f.has(SVE))
+        return "SVE";
     return "scalar";
 }
 

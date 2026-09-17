@@ -1,10 +1,3 @@
-// imagelib/src/math/Noise.cpp
-//
-// Out-of-line non-template noise bodies (see imagelib/math/Noise.h). All
-// exposed 1D/2D/3D/4D noise returns values normalized to [0, 1] (mean ~0.5);
-// fractal combinators return their natural ranges, which the Procedural
-// layer re-normalizes where needed.
-
 #include "imagelib/math/Noise.h"
 
 #include <algorithm>
@@ -15,23 +8,26 @@ namespace math {
 namespace noise {
 
 namespace {
-inline float c01(float v) noexcept {
-    return v < 0.f ? 0.f : (v > 1.f ? 1.f : v);
-}
 
-inline float remap01(float v) noexcept {
-    return c01(0.5f + 0.5f * v); // [-1,1] -> [0,1]
-}
+/// Clamps v to [0, 1].
+inline float c01(float v) noexcept { return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); }
 
-inline bool odd(uint64 h) noexcept {
-    return (h & 1u) != 0;
-}
+/// Maps [-1, 1] into [0, 1], clamped.
+/// @param v Input in [-1, 1].
+/// @return Clamped [0, 1] value.
+inline float remap01(float v) noexcept { return c01(0.5f + 0.5f * v); }
+
+/// True when the low bit of h is set.
+inline bool odd(uint64 h) noexcept { return (h & 1u) != 0; }
 } // namespace
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
+/// Combines seed with 4 lattice coordinates into a hash.
+/// @param seed Hash seed.
+/// @param a First lattice coordinate.
+/// @param b Second lattice coordinate.
+/// @param c Third lattice coordinate.
+/// @param d Fourth lattice coordinate.
+/// @return The combined hash.
 uint64 latticeHash(uint64 seed, int64 a, int64 b, int64 c, int64 d) noexcept {
     uint64 h = seed;
     h = hashCombine(h, static_cast<uint64>(a));
@@ -41,8 +37,16 @@ uint64 latticeHash(uint64 seed, int64 a, int64 b, int64 c, int64 d) noexcept {
     return h;
 }
 
-uint64 latticeHash(uint64 seed, int64 a, int64 b, int64 c, int64 d,
-                   int64 e, int64 f) noexcept {
+/// Combines seed with 6 lattice coordinates into a hash.
+/// @param seed Hash seed.
+/// @param a First lattice coordinate.
+/// @param b Second lattice coordinate.
+/// @param c Third lattice coordinate.
+/// @param d Fourth lattice coordinate.
+/// @param e Fifth lattice coordinate.
+/// @param f Sixth lattice coordinate.
+/// @return The combined hash.
+uint64 latticeHash(uint64 seed, int64 a, int64 b, int64 c, int64 d, int64 e, int64 f) noexcept {
     uint64 h = seed;
     h = hashCombine(h, static_cast<uint64>(a));
     h = hashCombine(h, static_cast<uint64>(b));
@@ -53,80 +57,125 @@ uint64 latticeHash(uint64 seed, int64 a, int64 b, int64 c, int64 d,
     return h;
 }
 
-float unit(uint64 h) noexcept {
-    return static_cast<float>(h >> 40) * (1.0f / 16777216.0f);
-}
+/// Maps a 24-bit slice of the hash to [0, 1].
+/// @param h Hash value.
+/// @return Value in [0, 1].
+float unit(uint64 h) noexcept { return static_cast<float>(h >> 40) * (1.0f / 16777216.0f); }
 
-float fade(float t) noexcept {
-    return t * t * t * (t * (t * 6.f - 15.f) + 10.f);
-}
+/// 5th-order fading polynomial for smooth interpolation.
+/// @param t Interpolation fraction.
+/// @return Faded value.
+float fade(float t) noexcept { return t * t * t * (t * (t * 6.f - 15.f) + 10.f); }
 
-float fadeLerp(float a, float b, float t) noexcept {
-    return a + (b - a) * fade(t);
-}
+/// Interpolates a to b using the fade curve.
+/// @param a Lower value.
+/// @param b Upper value.
+/// @param t Interpolation fraction.
+/// @return The interpolated value.
+float fadeLerp(float a, float b, float t) noexcept { return a + (b - a) * fade(t); }
 
+/// Dots the 2D gradient selected by h with (x, y).
+/// @param h Gradient selector hash.
+/// @param x First offset.
+/// @param y Second offset.
+/// @return The gradient dot product.
 float dotGrad2(uint64 h, float x, float y) noexcept {
     const float(&g)[2] = grad2Table[h & 7u];
     return g[0] * x + g[1] * y;
 }
 
+/// Dots the 3D gradient selected by h with (x, y, z).
+/// @param h Gradient selector hash.
+/// @param x First offset.
+/// @param y Second offset.
+/// @param z Third offset.
+/// @return The gradient dot product.
 float dotGrad3(uint64 h, float x, float y, float z) noexcept {
     const float(&g)[3] = grad3Table[h & 15u];
     return g[0] * x + g[1] * y + g[2] * z;
 }
 
-// ---------------------------------------------------------------------------
-// White noise (no interpolation)
-// ---------------------------------------------------------------------------
-
+/// 1D white noise; uncorrelated value per integer lattice cell.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @return Value in [0, 1].
 float whiteNoise1D(uint64 seed, float x) noexcept {
     return unit(latticeHash(seed, static_cast<int64>(std::floor(x))));
 }
 
+/// 2D white noise; uncorrelated value per integer lattice cell.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @return Value in [0, 1].
 float whiteNoise2D(uint64 seed, float x, float y) noexcept {
-    return unit(latticeHash(seed,
-                            static_cast<int64>(std::floor(x)),
-                            static_cast<int64>(std::floor(y))));
+    return unit(
+        latticeHash(seed, static_cast<int64>(std::floor(x)), static_cast<int64>(std::floor(y))));
 }
 
+/// 3D white noise; uncorrelated value per integer lattice cell.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @return Value in [0, 1].
 float whiteNoise3D(uint64 seed, float x, float y, float z) noexcept {
-    return unit(latticeHash(seed,
-                            static_cast<int64>(std::floor(x)),
-                            static_cast<int64>(std::floor(y)),
-                            static_cast<int64>(std::floor(z))));
+    return unit(latticeHash(
+        seed,
+        static_cast<int64>(std::floor(x)),
+        static_cast<int64>(std::floor(y)),
+        static_cast<int64>(std::floor(z))));
 }
 
+/// 4D white noise; uncorrelated value per integer lattice cell.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @param w Sample position.
+/// @return Value in [0, 1].
 float whiteNoise4D(uint64 seed, float x, float y, float z, float w) noexcept {
-    return unit(latticeHash(seed,
-                            static_cast<int64>(std::floor(x)),
-                            static_cast<int64>(std::floor(y)),
-                            static_cast<int64>(std::floor(z)),
-                            static_cast<int64>(std::floor(w))));
+    return unit(latticeHash(
+        seed,
+        static_cast<int64>(std::floor(x)),
+        static_cast<int64>(std::floor(y)),
+        static_cast<int64>(std::floor(z)),
+        static_cast<int64>(std::floor(w))));
 }
 
-// ---------------------------------------------------------------------------
-// Value noise (interpolated lattice hashes)
-// ---------------------------------------------------------------------------
-
+/// 1D value noise; faded interpolation of lattice hashes.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @return Value in [0, 1].
 float valueNoise1D(uint64 seed, float x) noexcept {
     const int64 i = static_cast<int64>(std::floor(x));
     const float t = x - static_cast<float>(i);
-    return fadeLerp(unit(latticeHash(seed, i)),
-                    unit(latticeHash(seed, i + 1)), t);
+    return fadeLerp(unit(latticeHash(seed, i)), unit(latticeHash(seed, i + 1)), t);
 }
 
+/// 2D value noise; faded interpolation of lattice hashes.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @return Value in [0, 1].
 float valueNoise2D(uint64 seed, float x, float y) noexcept {
     const int64 ix = static_cast<int64>(std::floor(x));
     const int64 iy = static_cast<int64>(std::floor(y));
     const float tx = x - static_cast<float>(ix);
     const float ty = y - static_cast<float>(iy);
-    const float a = unit(latticeHash(seed, ix,     iy));
+    const float a = unit(latticeHash(seed, ix, iy));
     const float b = unit(latticeHash(seed, ix + 1, iy));
-    const float c = unit(latticeHash(seed, ix,     iy + 1));
+    const float c = unit(latticeHash(seed, ix, iy + 1));
     const float d = unit(latticeHash(seed, ix + 1, iy + 1));
     return fadeLerp(fadeLerp(a, b, tx), fadeLerp(c, d, tx), ty);
 }
 
+/// 3D value noise; faded interpolation of lattice hashes.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @return Value in [0, 1].
 float valueNoise3D(uint64 seed, float x, float y, float z) noexcept {
     const int64 ix = static_cast<int64>(std::floor(x));
     const int64 iy = static_cast<int64>(std::floor(y));
@@ -144,6 +193,13 @@ float valueNoise3D(uint64 seed, float x, float y, float z) noexcept {
     return fadeLerp(fadeLerp(x00, x10, ty), fadeLerp(x01, x11, ty), tz);
 }
 
+/// 4D value noise; faded interpolation of lattice hashes.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @param w Sample position.
+/// @return Value in [0, 1].
 float valueNoise4D(uint64 seed, float x, float y, float z, float w) noexcept {
     const int64 ix = static_cast<int64>(std::floor(x));
     const int64 iy = static_cast<int64>(std::floor(y));
@@ -168,10 +224,10 @@ float valueNoise4D(uint64 seed, float x, float y, float z, float w) noexcept {
     return fadeLerp(r[0], r[1], tw);
 }
 
-// ---------------------------------------------------------------------------
-// Gradient noise (Perlin-style gradient lattices) -> [0,1]
-// ---------------------------------------------------------------------------
-
+/// 1D Perlin-style gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @return Value in [0, 1].
 float gradientNoise1D(uint64 seed, float x) noexcept {
     const int64 i = static_cast<int64>(std::floor(x));
     const float t = x - static_cast<float>(i);
@@ -180,21 +236,32 @@ float gradientNoise1D(uint64 seed, float x) noexcept {
     return remap01(g0 * t + (g1 * (t - 1.f) - g0 * t) * fade(t));
 }
 
+/// 2D Perlin-style gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @return Value in [0, 1].
 float gradientNoise2D(uint64 seed, float x, float y) noexcept {
     const int64 ix = static_cast<int64>(std::floor(x));
     const int64 iy = static_cast<int64>(std::floor(y));
     const float tx = x - static_cast<float>(ix);
     const float ty = y - static_cast<float>(iy);
-    const float n00 = dotGrad2(latticeHash(seed, ix,     iy),     tx,     ty);
-    const float n10 = dotGrad2(latticeHash(seed, ix + 1, iy),     tx - 1.f, ty);
-    const float n01 = dotGrad2(latticeHash(seed, ix,     iy + 1), tx,     ty - 1.f);
+    const float n00 = dotGrad2(latticeHash(seed, ix, iy), tx, ty);
+    const float n10 = dotGrad2(latticeHash(seed, ix + 1, iy), tx - 1.f, ty);
+    const float n01 = dotGrad2(latticeHash(seed, ix, iy + 1), tx, ty - 1.f);
     const float n11 = dotGrad2(latticeHash(seed, ix + 1, iy + 1), tx - 1.f, ty - 1.f);
     const float u = fade(tx);
     const float v = fade(ty);
-    return remap01(1.3f * (n00 + (n10 - n00) * u
-                          + ((n01 + (n11 - n01) * u) - (n00 + (n10 - n00) * u)) * v));
+    return remap01(
+        1.3f * (n00 + (n10 - n00) * u + ((n01 + (n11 - n01) * u) - (n00 + (n10 - n00) * u)) * v));
 }
 
+/// 3D Perlin-style gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @return Value in [0, 1].
 float gradientNoise3D(uint64 seed, float x, float y, float z) noexcept {
     const int64 ix = static_cast<int64>(std::floor(x));
     const int64 iy = static_cast<int64>(std::floor(y));
@@ -203,10 +270,11 @@ float gradientNoise3D(uint64 seed, float x, float y, float z) noexcept {
     const float ty = y - static_cast<float>(iy);
     const float tz = z - static_cast<float>(iz);
     auto corner = [&](int64 dx, int64 dy, int64 dz) {
-        return dotGrad3(latticeHash(seed, ix + dx, iy + dy, iz + dz),
-                        tx - static_cast<float>(dx),
-                        ty - static_cast<float>(dy),
-                        tz - static_cast<float>(dz));
+        return dotGrad3(
+            latticeHash(seed, ix + dx, iy + dy, iz + dz),
+            tx - static_cast<float>(dx),
+            ty - static_cast<float>(dy),
+            tz - static_cast<float>(dz));
     };
     const float u = fade(tx), v = fade(ty), t = fade(tz);
     float n000 = corner(0, 0, 0), n100 = corner(1, 0, 0);
@@ -222,27 +290,56 @@ float gradientNoise3D(uint64 seed, float x, float y, float z) noexcept {
     return remap01(0.28867513f * (ny0 + (ny1 - ny0) * t));
 }
 
+/// 4D gradient-style noise; value-noise slices blended along w.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @param w Sample position.
+/// @return Value in [0, 1].
 float gradientNoise4D(uint64 seed, float x, float y, float z, float w) noexcept {
-    // Volume-average style: interpolate 2D slices in the w direction.
     return c01(valueNoise4D(seed, x, y, z, w));
 }
 
-// ---------------------------------------------------------------------------
-// Alias: perlin == classic gradient noise lattice.
-// ---------------------------------------------------------------------------
-
+/// 1D Perlin noise; alias of gradientNoise1D.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @return Value in [0, 1].
 float perlinNoise1D(uint64 seed, float x) noexcept { return gradientNoise1D(seed, x); }
+/// 2D Perlin noise; alias of gradientNoise2D.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @return Value in [0, 1].
 float perlinNoise2D(uint64 seed, float x, float y) noexcept { return gradientNoise2D(seed, x, y); }
-float perlinNoise3D(uint64 seed, float x, float y, float z) noexcept { return gradientNoise3D(seed, x, y, z); }
-float perlinNoise4D(uint64 seed, float x, float y, float z, float w) noexcept { return gradientNoise4D(seed, x, y, z, w); }
+/// 3D Perlin noise; alias of gradientNoise3D.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @return Value in [0, 1].
+float perlinNoise3D(uint64 seed, float x, float y, float z) noexcept {
+    return gradientNoise3D(seed, x, y, z);
+}
+/// 4D Perlin noise; alias of gradientNoise4D.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @param w Sample position.
+/// @return Value in [0, 1].
+float perlinNoise4D(uint64 seed, float x, float y, float z, float w) noexcept {
+    return gradientNoise4D(seed, x, y, z, w);
+}
 
-// ---------------------------------------------------------------------------
-// Simplex noise (2D, 3D)
-// ---------------------------------------------------------------------------
-
+/// 2D simplex noise.
+/// @param seed Noise seed.
+/// @param xin Sample position.
+/// @param yin Sample position.
+/// @return Value in [0, 1].
 float simplexNoise2D(uint64 seed, float xin, float yin) noexcept {
-    constexpr float F2 = 0.3660254037844386f;  // (sqrt(3) - 1) / 2
-    constexpr float G2 = 0.21132486540518713f; // (3 - sqrt(3)) / 6
+    constexpr float F2 = 0.3660254037844386f;
+    constexpr float G2 = 0.21132486540518713f;
     const float s = (xin + yin) * F2;
     const float i = std::floor(xin + s);
     const float j = std::floor(yin + s);
@@ -259,14 +356,29 @@ float simplexNoise2D(uint64 seed, float xin, float yin) noexcept {
     const int64 jj = static_cast<int64>(std::floor(j));
     float n0 = 0.f, n1 = 0.f, n2 = 0.f;
     float tt = 0.5f - x0 * x0 - y0 * y0;
-    if (tt > 0.f) { tt *= tt; n0 = tt * tt * dotGrad2(latticeHash(seed, ii, jj), x0, y0); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n0 = tt * tt * dotGrad2(latticeHash(seed, ii, jj), x0, y0);
+    }
     tt = 0.5f - x1 * x1 - y1 * y1;
-    if (tt > 0.f) { tt *= tt; n1 = tt * tt * dotGrad2(latticeHash(seed, ii + i1, jj + j1), x1, y1); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n1 = tt * tt * dotGrad2(latticeHash(seed, ii + i1, jj + j1), x1, y1);
+    }
     tt = 0.5f - x2 * x2 - y2 * y2;
-    if (tt > 0.f) { tt *= tt; n2 = tt * tt * dotGrad2(latticeHash(seed, ii + 2, jj + 2), x2, y2); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n2 = tt * tt * dotGrad2(latticeHash(seed, ii + 2, jj + 2), x2, y2);
+    }
     return remap01(70.f * (n0 + n1 + n2));
 }
 
+/// 3D simplex noise.
+/// @param seed Noise seed.
+/// @param xin Sample position.
+/// @param yin Sample position.
+/// @param zin Sample position.
+/// @return Value in [0, 1].
 float simplexNoise3D(uint64 seed, float xin, float yin, float zin) noexcept {
     constexpr float F3 = 1.f / 3.f;
     constexpr float G3 = 1.f / 6.f;
@@ -280,13 +392,51 @@ float simplexNoise3D(uint64 seed, float xin, float yin, float zin) noexcept {
     const float z0 = zin - (k - t);
     int i1, j1, k1, i2, j2, k2;
     if (x0 >= y0) {
-        if (y0 >= z0)      { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
-        else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1; }
-        else               { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1; }
+        if (y0 >= z0) {
+            i1 = 1;
+            j1 = 0;
+            k1 = 0;
+            i2 = 1;
+            j2 = 1;
+            k2 = 0;
+        } else if (x0 >= z0) {
+            i1 = 1;
+            j1 = 0;
+            k1 = 0;
+            i2 = 1;
+            j2 = 0;
+            k2 = 1;
+        } else {
+            i1 = 0;
+            j1 = 0;
+            k1 = 1;
+            i2 = 1;
+            j2 = 0;
+            k2 = 1;
+        }
     } else {
-        if (y0 < z0)       { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1; }
-        else if (x0 < z0)  { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1; }
-        else               { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
+        if (y0 < z0) {
+            i1 = 0;
+            j1 = 0;
+            k1 = 1;
+            i2 = 0;
+            j2 = 1;
+            k2 = 1;
+        } else if (x0 < z0) {
+            i1 = 0;
+            j1 = 1;
+            k1 = 0;
+            i2 = 0;
+            j2 = 1;
+            k2 = 1;
+        } else {
+            i1 = 0;
+            j1 = 1;
+            k1 = 0;
+            i2 = 1;
+            j2 = 1;
+            k2 = 0;
+        }
     }
     const float x1 = x0 - static_cast<float>(i1) + G3;
     const float y1 = y0 - static_cast<float>(j1) + G3;
@@ -302,25 +452,46 @@ float simplexNoise3D(uint64 seed, float xin, float yin, float zin) noexcept {
     const int64 kk = static_cast<int64>(std::floor(k));
     float n0 = 0.f, n1 = 0.f, n2 = 0.f, n3 = 0.f;
     float tt = 0.6f - x0 * x0 - y0 * y0 - z0 * z0;
-    if (tt > 0.f) { tt *= tt; n0 = tt * tt * dotGrad3(latticeHash(seed, ii, jj, kk, 0), x0, y0, z0); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n0 = tt * tt * dotGrad3(latticeHash(seed, ii, jj, kk, 0), x0, y0, z0);
+    }
     tt = 0.6f - x1 * x1 - y1 * y1 - z1 * z1;
-    if (tt > 0.f) { tt *= tt; n1 = tt * tt * dotGrad3(latticeHash(seed, ii + i1, jj + j1, kk + k1, 1), x1, y1, z1); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n1 = tt * tt * dotGrad3(latticeHash(seed, ii + i1, jj + j1, kk + k1, 1), x1, y1, z1);
+    }
     tt = 0.6f - x2 * x2 - y2 * y2 - z2 * z2;
-    if (tt > 0.f) { tt *= tt; n2 = tt * tt * dotGrad3(latticeHash(seed, ii + i2, jj + j2, kk + k2, 2), x2, y2, z2); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n2 = tt * tt * dotGrad3(latticeHash(seed, ii + i2, jj + j2, kk + k2, 2), x2, y2, z2);
+    }
     tt = 0.6f - x3 * x3 - y3 * y3 - z3 * z3;
-    if (tt > 0.f) { tt *= tt; n3 = tt * tt * dotGrad3(latticeHash(seed, ii + 1, jj + 1, kk + 1, 3), x3, y3, z3); }
+    if (tt > 0.f) {
+        tt *= tt;
+        n3 = tt * tt * dotGrad3(latticeHash(seed, ii + 1, jj + 1, kk + 1, 3), x3, y3, z3);
+    }
     return remap01(32.f * (n0 + n1 + n2 + n3));
 }
 
-// ---------------------------------------------------------------------------
-// Worley / cellular noise
-// ---------------------------------------------------------------------------
-
-float Worley2D::value() const noexcept { return c01(0.70710678f * f1); }   // /sqrt(2)
+/// Maps the nearest-feature distance into [0, 1].
+/// @return The cell value.
+float Worley2D::value() const noexcept { return c01(0.70710678f * f1); }
+/// Maps the edge distance (f2 - f1) into [0, 1].
+/// @return The edge value.
 float Worley2D::edge() const noexcept { return c01(0.70710678f * (f2 - f1)); }
-float Worley3D::value() const noexcept { return c01(0.57735027f * f1); }   // /sqrt(3)
+/// Maps the nearest-feature distance into [0, 1].
+/// @return The cell value.
+float Worley3D::value() const noexcept { return c01(0.57735027f * f1); }
+/// Maps the edge distance (f2 - f1) into [0, 1].
+/// @return The edge value.
 float Worley3D::edge() const noexcept { return c01(0.57735027f * (f2 - f1)); }
 
+/// 2D Worley (cellular) noise over the 3x3 neighborhood.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @return Feature distances and closest offset.
 Worley2D worley2D(uint64 seed, float x, float y) noexcept {
     const int64 xi = static_cast<int64>(std::floor(x));
     const int64 yi = static_cast<int64>(std::floor(y));
@@ -349,6 +520,12 @@ Worley2D worley2D(uint64 seed, float x, float y) noexcept {
     return Worley2D{std::sqrt(f1), std::sqrt(f2), closest};
 }
 
+/// 3D Worley (cellular) noise over the 3x3x3 neighborhood.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @return Feature distances.
 Worley3D worley3D(uint64 seed, float x, float y, float z) noexcept {
     const int64 xi = static_cast<int64>(std::floor(x));
     const int64 yi = static_cast<int64>(std::floor(y));
@@ -366,8 +543,12 @@ Worley3D worley3D(uint64 seed, float x, float y, float z) noexcept {
                 const float dz = z - pz;
                 const float d2 = dx * dx + dy * dy + dz * dz;
                 if (d2 < f2) {
-                    if (d2 < f1) { f2 = f1; f1 = d2; }
-                    else         { f2 = d2; }
+                    if (d2 < f1) {
+                        f2 = f1;
+                        f1 = d2;
+                    } else {
+                        f2 = d2;
+                    }
                 }
             }
         }
@@ -375,32 +556,47 @@ Worley3D worley3D(uint64 seed, float x, float y, float z) noexcept {
     return Worley3D{std::sqrt(f1), std::sqrt(f2)};
 }
 
-// ---------------------------------------------------------------------------
-// Fractal combinators
-// ---------------------------------------------------------------------------
-
+/// 2D fractal Brownian motion over gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param p Fractal parameters.
+/// @return Normalized value.
 float fbm2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
     float amp = p.gain, freq = p.frequency, sum = 0.f, norm = 0.f;
     for (int o = 0; o < p.octaves; ++o) {
         sum += (2.f * gradientNoise2D(seed, x * freq, y * freq) - 1.f) * amp;
         norm += amp;
         freq *= p.lacunarity;
-        amp  *= p.persistence;
+        amp *= p.persistence;
     }
     return norm > 0.f ? sum / norm : 0.f;
 }
 
+/// 3D fractal Brownian motion over gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param z Sample position.
+/// @param p Fractal parameters.
+/// @return Normalized value.
 float fbm3D(uint64 seed, float x, float y, float z, const FractalParams& p) noexcept {
     float amp = p.gain, freq = p.frequency, sum = 0.f, norm = 0.f;
     for (int o = 0; o < p.octaves; ++o) {
         sum += (2.f * gradientNoise3D(seed, x * freq, y * freq, z * freq) - 1.f) * amp;
         norm += amp;
         freq *= p.lacunarity;
-        amp  *= p.persistence;
+        amp *= p.persistence;
     }
     return norm > 0.f ? sum / norm : 0.f;
 }
 
+/// 2D ridged multifractal over gradient noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param p Fractal parameters.
+/// @return Value in [0, 1].
 float ridged2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
     float amp = p.gain, freq = p.frequency, sum = 0.f, norm = 0.f;
     for (int o = 0; o < p.octaves; ++o) {
@@ -409,11 +605,17 @@ float ridged2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
         sum += r * r * amp;
         norm += amp;
         freq *= p.lacunarity;
-        amp  *= p.persistence;
+        amp *= p.persistence;
     }
     return norm > 0.f ? c01(sum / norm) : 0.f;
 }
 
+/// 2D billow noise (absolute-value gradient).
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param p Fractal parameters.
+/// @return Value in [0, 1].
 float billow2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
     float amp = p.gain, freq = p.frequency, sum = 0.f, norm = 0.f;
     for (int o = 0; o < p.octaves; ++o) {
@@ -421,17 +623,29 @@ float billow2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
         sum += std::abs(base) * amp;
         norm += amp;
         freq *= p.lacunarity;
-        amp  *= p.persistence;
+        amp *= p.persistence;
     }
     return norm > 0.f ? c01(sum / norm) : 0.f;
 }
 
+/// Blends fbm and ridged noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param p Fractal parameters.
+/// @return The blended value.
 float hybrid2D(uint64 seed, float x, float y, const FractalParams& p) noexcept {
     return 0.5f * fbm2D(seed, x, y, p) + 0.5f * (2.f * ridged2D(seed, x, y, p) - 1.f);
 }
 
-float domainWarp2D(uint64 seed, float x, float y, float amount,
-                   const FractalParams& p) noexcept {
+/// 2D domain-warped fractal noise.
+/// @param seed Noise seed.
+/// @param x Sample position.
+/// @param y Sample position.
+/// @param amount Warp strength.
+/// @param p Fractal parameters.
+/// @return The warped value.
+float domainWarp2D(uint64 seed, float x, float y, float amount, const FractalParams& p) noexcept {
     const float ox = amount * fbm2D(seed, x, y, p);
     const float oy = amount * fbm2D(seed + 0x9e3779b9U, x, y, p);
     return fbm2D(seed + 0x85ebca6bU, x + ox, y + oy, p);

@@ -40,21 +40,21 @@ add_subdirectory(external)
 # ---------------------------------------------------------------------------
 add_library(imagelib STATIC
     # memory
-    src/memory/Memory.cpp
-    src/memory/Allocator.cpp
-    src/memory/Buffer.cpp
+    src/core/memory/Memory.cpp
+    src/core/memory/DefaultAllocator.cpp
+    src/core/memory/Buffer.cpp
     # core
-    src/core/Image.cpp
+    src/core/image/Image.cpp
+    src/core/image/Pixel.cpp
     # math
     src/math/Matrix.cpp
     src/math/Geometry.cpp
     src/math/Scalar.cpp
     src/math/Noise.cpp
     # codecs
-    src/codecs/Codec.cpp
-    src/codecs/StbCodec.cpp
-    # compression
-    src/compression/Compression.cpp
+    src/codecs/registry/Registry.cpp
+    src/codecs/api/Api.cpp
+    src/codecs/stb/Stb.cpp
     # simd
     src/simd/Simd.cpp
     # threading
@@ -63,21 +63,20 @@ add_library(imagelib STATIC
     src/threading/Thread.cpp
     src/threading/ParallelFor.cpp
     # benchmark utility (non-template halves of Benchmark.h)
-    src/benchmark/Benchmark.cpp
-    # processing
-    src/processing/Pixel.cpp
+    src/benchmark/measure/Measure.cpp
+    src/benchmark/record/Entry.cpp
+    src/benchmark/record/PairEntry.cpp
+    src/benchmark/report/BenchReport.cpp
+    # processing primitives (kernel container + color math only; filters are
+    # composed by the user)
     src/processing/Color.cpp
     src/processing/Convolution.cpp
-    src/processing/Filters.cpp
-    src/processing/Resize.cpp
-    src/processing/Transform.cpp
-    src/processing/Morphology.cpp
-    src/processing/Analysis.cpp
-    # procedural is header-only (Noise/Masks/Heightmaps/Textures)
+    # procedural is header-only (Noise render layer over math::noise)
 )
 
 target_include_directories(imagelib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 # STB is private to the STB codec backend only.
@@ -102,81 +101,51 @@ add_executable(imagelib_demo
 target_link_libraries(imagelib_demo PRIVATE imagelib)
 
 # ---------------------------------------------------------------------------
-# Tests.
+# Filter demos: the 13 classic image operations, each a standalone binary that
+# load/save an image and print a scalar-vs-SIMD-vs-parallel benchmark report
+# (see examples/example_util.h). Used for performance benchmarking.
+# Each accepts:  <target> [input] [output] ["serial"] [filter args...]
 # ---------------------------------------------------------------------------
-enable_testing()
-add_executable(imagelib_tests
-    tests/test_runner.cpp
-    tests/test_types.cpp
-    tests/test_memory.cpp
-    tests/test_math.cpp
-    tests/test_image.cpp
-    tests/test_compression.cpp
-    tests/test_simd.cpp
-    tests/test_threading.cpp
-    tests/test_processing.cpp
-    tests/test_procedural.cpp
-    tests/test_codecs.cpp
+set(IMAGELIB_FILTER_DEMOS
+    "grayscale_demo|examples/filter_grayscale.cpp"
+    "black_white_demo|examples/filter_black_white.cpp"
+    "invert_demo|examples/filter_invert.cpp"
+    "merge_demo|examples/filter_merge.cpp"
+    "flip_demo|examples/filter_flip.cpp"
+    "rotate_demo|examples/filter_rotate.cpp"
+    "darken_lighten_demo|examples/filter_darken_lighten.cpp"
+    "crop_demo|examples/filter_crop.cpp"
+    "frame_demo|examples/filter_frame.cpp"
+    "edge_demo|examples/filter_edge.cpp"
+    "resize_demo|examples/filter_resize.cpp"
+    "blur_demo|examples/filter_blur.cpp"
+    "oil_demo|examples/filter_oil.cpp"
 )
-target_link_libraries(imagelib_tests PRIVATE imagelib)
-add_test(NAME imagelib_tests COMMAND imagelib_tests)
-
-# ---------------------------------------------------------------------------
-# Benchmarks.
-# ---------------------------------------------------------------------------
-add_executable(imagelib_bench
-    benchmarks/bench_main.cpp
-)
-target_link_libraries(imagelib_bench PRIVATE imagelib)
-
-# ---------------------------------------------------------------------------
-# Examples.
-# ---------------------------------------------------------------------------
-add_executable(basic_demo examples/basic_demo.cpp)
-target_link_libraries(basic_demo PRIVATE imagelib)
-
-add_executable(processing_demo examples/processing_demo.cpp)
-target_link_libraries(processing_demo PRIVATE imagelib)
-
-# The 13 image-operation example binaries.
-set(IMAGELIB_EXAMPLES
-    grayscale_demo
-    black_white_demo
-    invert_demo
-    merge_demo
-    flip_demo
-    rotate_demo
-    darken_lighten_demo
-    crop_demo
-    frame_demo
-    edge_demo
-    resize_demo
-    blur_demo
-    oil_demo
-)
-foreach(exe IN LISTS IMAGELIB_EXAMPLES)
-    add_executable(${exe} examples/${exe}.cpp)
-    target_link_libraries(${exe} PRIVATE imagelib)
+foreach(pair IN LISTS IMAGELIB_FILTER_DEMOS)
+    string(REPLACE "|" ";" pair_list "${pair}")
+    list(GET pair_list 0 demo_name)
+    list(GET pair_list 1 demo_src)
+    add_executable("${demo_name}" "${demo_src}")
+    target_link_libraries("${demo_name}" PRIVATE imagelib)
 endforeach()
 
-# The 13 teaching demos that implement the same filters from scratch.
-# Each shows students exactly how to write and optimize the kernel.
-set(IMAGELIB_CUSTOM_EXAMPLES
-    custom_grayscale_demo
-    custom_black_white_demo
-    custom_invert_demo
-    custom_merge_demo
-    custom_flip_demo
-    custom_rotate_demo
-    custom_darken_lighten_demo
-    custom_crop_demo
-    custom_frame_demo
-    custom_edge_demo
-    custom_resize_demo
-    custom_blur_demo
-    custom_oil_demo
+# ---------------------------------------------------------------------------
+# I/O benchmark demo: times disk load and save (PNG / BMP) throughput.
+# ---------------------------------------------------------------------------
+add_executable(io_speed_demo examples/io_speed_demo.cpp)
+target_link_libraries(io_speed_demo PRIVATE imagelib)
+
+# ---------------------------------------------------------------------------
+# Tutorial demos (see tutorial/README.md). Each lesson is a .md + .cpp pair.
+# ---------------------------------------------------------------------------
+set(IMAGELIB_TUTORIALS
+    tutorial/01_image.cpp
+    tutorial/02_math.cpp
+    tutorial/03_parallel.cpp
+    tutorial/04_simd.cpp
 )
-foreach(exe IN LISTS IMAGELIB_CUSTOM_EXAMPLES)
-    add_executable(${exe} examples/custom/${exe}.cpp)
-    target_link_libraries(${exe} PRIVATE imagelib)
+foreach(tutorial_src IN LISTS IMAGELIB_TUTORIALS)
+    get_filename_component(tutorial_base "${tutorial_src}" NAME_WE)
+    add_executable("tutorial_${tutorial_base}" "${tutorial_src}")
+    target_link_libraries("tutorial_${tutorial_base}" PRIVATE imagelib)
 endforeach()

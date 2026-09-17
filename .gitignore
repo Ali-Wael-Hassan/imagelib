@@ -4,6 +4,7 @@
 *.bmp
 *.exe
 *.a
+*.clang-format
 
 # CMake Config
 *.make

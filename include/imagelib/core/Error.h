@@ -1,10 +1,7 @@
 #pragma once
-// imagelib/core/Error.h
-//
-// Consistent error strategy for ImageLib. All library errors derive from
-// iml::Error (a std::runtime_error). Error codes loosely mirror the exception
-// types so callers can switch on a stable enum when they prefer codes over
-// dynamic typing.
+/// @file
+/// Consistent error strategy for ImageLib: all library errors derive from
+/// iml::Error (a std::runtime_error).
 
 #include <stdexcept>
 #include <string>
@@ -14,35 +11,53 @@ namespace iml {
 
 /// Stable, exception-type-independent error codes.
 enum class ErrorCode : uint16 {
+    /// No error.
     None = 0,
-    InvalidDimension,     // zero / negative / oversize dimensions
-    UnsupportedFormat,    // format or data type not implemented
-    InvalidFile,          // file missing, unreadable, or corrupt header
-    CodecFailure,         // codec backend failed during encode/decode
-    AllocationFailure,    // memory allocation failed
-    InvalidParameter,     // bad argument (kernel too big, null view, ...)
-    IntegerOverflow,      // size computation overflowed the address space
-    UnsupportedBackend,   // requested SIMD/parallel backend not compiled in
-    ResourceOwnership,    // allocator/ownership pairing violation
+    /// Zero, negative, or oversize dimensions.
+    InvalidDimension,
+    /// Format or data type not implemented.
+    UnsupportedFormat,
+    /// File missing, unreadable, or corrupt header.
+    InvalidFile,
+    /// Codec backend failed during encode/decode.
+    CodecFailure,
+    /// Memory allocation failed.
+    AllocationFailure,
+    /// Bad argument (kernel too big, null view, ...).
+    InvalidParameter,
+    /// Size computation overflowed the address space.
+    IntegerOverflow,
+    /// Requested SIMD/parallel backend not compiled in.
+    UnsupportedBackend,
+    /// Allocator/ownership pairing violation.
+    ResourceOwnership,
 };
 
 /// Base class for every ImageLib error.
 class Error : public std::runtime_error {
-public:
+  public:
+    /// Constructs an error with the given code and message.
+    /// @param code The stable error code.
+    /// @param message Human-readable description of the failure.
+    /// @throws std::bad_alloc If the message cannot be stored.
     explicit Error(ErrorCode code, const std::string& message)
         : std::runtime_error(message), code_(code) {}
 
+    /// Returns the stable error code.
+    /// @return The ErrorCode passed at construction.
     ErrorCode code() const noexcept { return code_; }
 
-private:
+  private:
+    /// Stable error code for this error.
     ErrorCode code_;
 };
 
-#define IML_DEFINE_ERROR(Name, CodeSuffix)                                      \
-    class Name##Error : public Error {                                          \
-    public:                                                                     \
-        explicit Name##Error(const std::string& message)                         \
-            : Error(ErrorCode::CodeSuffix, message) {}                          \
+/// Defines a concrete error class deriving from Error with a fixed code.
+#define IML_DEFINE_ERROR(Name, CodeSuffix)                                                         \
+    class Name##Error : public Error {                                                             \
+      public:                                                                                      \
+        explicit Name##Error(const std::string& message)                                           \
+            : Error(ErrorCode::CodeSuffix, message) {}                                             \
     };
 
 IML_DEFINE_ERROR(InvalidDimension, InvalidDimension)

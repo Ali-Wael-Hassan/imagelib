@@ -1,10 +1,10 @@
-// imagelib demo: converts a loaded image to grayscale and saves it.
-
 #include <iostream>
 #include <string>
 
 #include "imagelib/imagelib.h"
 
+/// Entry point: loads an image, converts it to grayscale, and saves the result.
+/// @return 0 on success.
 int main() {
     std::string filename;
     std::cout << "Pls enter colored image name to turn to gray scale: ";

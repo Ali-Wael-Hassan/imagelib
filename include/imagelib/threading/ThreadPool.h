@@ -1,17 +1,8 @@
 #pragma once
 #define IMAGELIB_THREADING_THREADPOOL_H_
-// imagelib/threading/ThreadPool.h
-//
-// Fixed-size worker pool. Callers push Jobs; workers pull them off a shared
-// queue. The pool never allocates per-job state and is intentionally minimal:
-//   - start() spawns the workers, stop() drains + joins (drop pending)
-//   - tryPush() is non-blocking; push() blocks until the job is accepted
-//   - waitAll() waits until the queue is empty and every worker is idle
-//
-// Restrictions:
-//   - jobs must NOT call back into the pool's waitAll()/stop() (nested
-//     waiting would deadlock); delegate to a different pool instead.
-//   - Job payloads must be self-contained (no dangling references).
+/// @file ThreadPool.h
+/// Fixed-size worker pool: callers push Jobs, workers pull them off a shared
+/// queue. Jobs must not call back into the pool's waitAll()/stop().
 
 #include "imagelib/threading/Thread.h"
 #include "imagelib/threading/Job.h"
@@ -23,8 +14,9 @@
 
 namespace iml {
 
+/// Fixed-size worker pool executing Jobs from a shared queue.
 class ThreadPool {
-public:
+  public:
     /// Constructs and starts a pool with `workers` threads (0 => hardware
     /// concurrency minus one, at least one).
     explicit ThreadPool(size_t workers = 0);
@@ -63,16 +55,16 @@ public:
     /// True while the pool is running (started and not stopped).
     bool running() const noexcept;
 
-private:
+  private:
     void workerLoop() noexcept;
 
-    std::vector<Thread>        threads_;
-    std::deque<Job>            queue_;
-    mutable std::mutex         mtx_;
-    std::condition_variable    cvWork_;
-    std::condition_variable    cvIdle_;
-    size_t                     pending_  = 0; // jobs taken but not finished
-    bool                       stopping_ = false;
+    std::vector<Thread> threads_;
+    std::deque<Job> queue_;
+    mutable std::mutex mtx_;
+    std::condition_variable cvWork_;
+    std::condition_variable cvIdle_;
+    size_t pending_ = 0;
+    bool stopping_ = false;
 };
 
 /// Process-wide default worker pool (started lazily on first use).

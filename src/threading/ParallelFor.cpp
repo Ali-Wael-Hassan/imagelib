@@ -1,8 +1,3 @@
-// imagelib/src/threading/ParallelFor.cpp
-//
-// Out-of-line non-template helpers used by ParallelFor.h: the policy -> pool
-// decision (wantsParallel) and the pool resolution that honors maxWorkers.
-
 #include "imagelib/threading/ParallelFor.h"
 
 #include <algorithm>
@@ -11,17 +6,18 @@
 namespace iml {
 namespace detail {
 
+/// True when the policy wants pooled execution for `count` elements.
 bool wantsParallel(const ExecutionPolicy& policy, size_t count, size_t threshold) noexcept {
     switch (policy.mode) {
-        case ExecutionMode::Serial:
-        case ExecutionMode::Simd: // single-threaded SIMD: no thread pool
-            return false;
-        case ExecutionMode::Parallel:
-        case ExecutionMode::SimdParallel:
-            return true;
-        case ExecutionMode::Auto:
-        default:
-            return count >= threshold;
+    case ExecutionMode::Serial:
+    case ExecutionMode::Simd:
+        return false;
+    case ExecutionMode::Parallel:
+    case ExecutionMode::SimdParallel:
+        return true;
+    case ExecutionMode::Auto:
+    default:
+        return count >= threshold;
     }
 }
 
@@ -39,6 +35,7 @@ ThreadPool& temporaryPool(size_t workers) {
 
 } // namespace
 
+/// Resolves which pool to run on, honoring policy.maxWorkers.
 ThreadPool& resolvePool(const ExecutionPolicy& policy) {
     ThreadPool& def = defaultThreadPool();
     if (policy.maxWorkers == 0 || policy.maxWorkers == def.workerCount()) {
@@ -48,4 +45,5 @@ ThreadPool& resolvePool(const ExecutionPolicy& policy) {
 }
 
 } // namespace detail
+
 } // namespace iml
