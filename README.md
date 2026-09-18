@@ -17,8 +17,6 @@ self-contained kernels in `examples/`. The reports compare a serial baseline,
 a SIMD single-thread path where the filter has one, and a parallel path. The
 parallel path is normally the fastest because it combines independent rows
 with all available cores; SIMD gives its largest gains on contiguous data.
-The filter math is the assignment's to write; the examples are the completed
-reference and the benchmarking target.
 
 ## Features
 
@@ -49,7 +47,6 @@ include/imagelib/     public headers (umbrella: imagelib/imagelib.h)
 src/                  library implementation + main
 examples/             13 filter demos + example_util.h (benchmark trio)
 tutorial/             beginner lessons (.md + .cpp pairs)
-docs/                 assignment guide
 external/stb_image/   vendored STB sources (never in public headers)
 assets/               sample images for the demos
 ```
@@ -194,8 +191,7 @@ cost of channel deinterleaving and output quantization.
 Step-by-step lessons for absolute C++ beginners, each a `.md` lesson plus a
 runnable `.cpp` demo built as `tutorial_01_image` … `tutorial_04_simd`. The
 tour's example filters are the **grayscale + invert kernels you write by hand**
-(Lesson 1) — the library is the tool, the filter loop is yours, exactly as in
-the assignment:
+(Lesson 1) — the library is the tool.
 
 - [01 — Images](tutorial/01_image.md) load/save/inspect, pixels, write your own
   `grayManual` / `invertManual`
@@ -205,9 +201,7 @@ the assignment:
 - [04 — SIMD](tutorial/04_simd.md) what SIMD is and the two high-level APIs
 
 See [tutorial/README.md](tutorial/README.md) for the learning path and build
-instructions, and [docs/ASSIGNMENT_GUIDE.md](docs/ASSIGNMENT_GUIDE.md) for the
-assignment — the 13 `examples/filter_*.cpp` kernels are the reference
-implementations you benchmark against.
+instructions.
 
 ## Benchmarking utilities
 
